@@ -1,0 +1,20 @@
+Unshield 0.6 patch taken from:-
+
+http://www.mail-archive.com/synce-devel@lists.sourceforge.net/msg01806.html
+
+--- lib/libunshield.c.orig	2010-06-24 08:28:25.000000000 +0100
++++ lib/libunshield.c	2010-06-24 08:28:46.000000000 +0100
+@@ -268,8 +268,11 @@
+         unshield_error("Failed to read common header from header file %i", i);
+         goto error;
+       }
+-      
+-      header->major_version = (header->common.version >> 12) & 0xf;
++
++       if ((header->common.version >> 12)  == 0x2000)
++              header->major_version = 9;
++       else
++              header->major_version = (header->common.version >> 12) & 0xf;
+ 
+ #if 0
+       if (header->major_version < 5)
