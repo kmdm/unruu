@@ -41,6 +41,9 @@
  * 1. Cleanup the temp directory.
  * 2. Refactor extract_ruu_file so it does one-pass to extract both of the 
  *    required files.
+ * 3. extract_ruu_file needs to try CHUNK_SIZE * 1.5 if it fails to find a file
+ *    incase the matching strings lies over a chunk boundary (or some other 
+ *    method to catch this scenario).
  */
 
 #include <stdio.h>
