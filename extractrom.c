@@ -177,7 +177,7 @@ bool extract_ruu_files(FILE *ruu) {
 
     free(buffer);
     for(c=0; c < count; c++)
-        free(*(search + (c * sizeof(char *))));
+        free(*(search+c));
     free(search);
 
     return result == count;
