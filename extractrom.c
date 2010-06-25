@@ -38,12 +38,8 @@
  * The code could probably be better, but c'est la vie! :>
  *
  * TODO
- * 1. Cleanup the temp directory.
- * 2. Refactor extract_ruu_file so it does one-pass to extract both of the 
- *    required files.
- * 3. extract_ruu_file needs to try CHUNK_SIZE * 1.5 if it fails to find a file
- *    incase the matching strings lies over a chunk boundary (or some other 
- *    method to catch this scenario).
+ * 1. extract_ruu_files needs correctly handle the edge case of the match string
+      laying over the CHUNK_SIZE boundary. 
  */
 
 #include <stdio.h>
@@ -53,12 +49,28 @@
 
 #include <libunshield.h>
 
-#define CHUNK_SIZE 1024
-#define DATA1_LENGTH_OFFSET 24
-#define DATA1_PREFIX "Disk1\\"
-#define DATA1_FILELEN_BUFFER 20
+#define CHUNK_SIZE 4096
+#define RUU_LENGTH_OFFSET 24
+#define RUU_FILE_PREFIX "Disk1\\"
+#define RUU_FILES "data1.cab,data1.hdr"
+#define RUU_FILELEN_BUFFER 20
 #define ROM_ZIP_GROUP "<Support>Language Independent OS Independent Files"
 #define PATH_MAX 256
+
+void cleanup(char *tempdir, char *currdir) {
+    char files[] = RUU_FILES;
+    char *ruu_file = strtok(files, ",");
+    
+    printf("Cleaning up...\n");
+
+    while(ruu_file != NULL) {
+        unlink(ruu_file);
+        ruu_file = strtok(NULL, ",");
+    }
+
+    chdir(currdir);
+    rmdir(tempdir);
+}
 
 bool extract_rom_zip(char *path) {
     bool result = false;
@@ -67,6 +79,8 @@ bool extract_rom_zip(char *path) {
     char *output_path = calloc(1, strlen(path) + 9);
     strncpy(output_path, path, strlen(path));
     strncat(output_path, "/rom.zip", 8);
+    
+    printf("Extracting rom.zip...\n");
     
     unshield_set_log_level(UNSHIELD_LOG_LEVEL_LOWEST);
     Unshield *unshield = unshield_open("data1.cab");
@@ -89,66 +103,84 @@ bool extract_rom_zip(char *path) {
     return result;
 }
 
-bool extract_ruu_file(FILE *ruu, char *filename, int chunk_size) {
-    char *buffer = malloc(sizeof(char)*chunk_size);
+bool extract_ruu_files(FILE *ruu) {
+    char *buffer = malloc(sizeof(char)*CHUNK_SIZE);
     size_t length;
-    int offset = 0;
-    bool result = false;
+    int count = 1;
+    int result = 0;
     
-    char *search = calloc(sizeof(char),
-                          strlen(filename) + strlen(DATA1_PREFIX) + 1);
+    int c = 0;
+    for(c = 0; c < strlen(RUU_FILES); c++)
+        if(strncmp(RUU_FILES+c, ",", 1) == 0)
+            count++;
+    
+    char files[] = RUU_FILES;
+    char **search = calloc(sizeof(char *), count);
+    
+    char *ruu_file = strtok(files, ",");
+    for(c = 0; c < count && ruu_file != NULL; c++) {
+        *(search+c) = 
+            calloc(sizeof(char), strlen(ruu_file)+strlen(RUU_FILE_PREFIX)+1);
+        strncpy(*(search+c), RUU_FILE_PREFIX, strlen(RUU_FILE_PREFIX));
+        strncat(*(search+c), ruu_file, strlen(ruu_file));
+        ruu_file = strtok(NULL, ",");
+    }
+    
+    printf("Extracting temporary files...\n");
 
-    strncpy(search, DATA1_PREFIX, strlen(DATA1_PREFIX));
-    strncat(search, filename, strlen(filename));
-    
     rewind(ruu);
     do {
         int i = 0;
-        length = fread(buffer, 1, chunk_size, ruu);
-        for(i=0; i <= length - strlen(search); i++) {
-            if(memcmp(search, buffer + i, strlen(search)) == 0) {
-                offset += i;
-                fseek(ruu, offset + DATA1_LENGTH_OFFSET, SEEK_SET);
+        length = fread(buffer, 1, CHUNK_SIZE, ruu);
+        for(c=0; c < count; c++) {
+            ruu_file = *(search+c);
+            
+            for(i=0; i <= length - strlen(ruu_file); i++) {
+                if(memcmp(ruu_file, buffer + i, strlen(ruu_file)) == 0) {
+                    fseek(ruu, i + RUU_LENGTH_OFFSET - CHUNK_SIZE, SEEK_CUR);
                 
-                /* Obtain the file length
-                 * (TODO: probably a better way of doing this).
-                 */
-                int j = 0;
-                char lenbuf;
-                char filelen[DATA1_FILELEN_BUFFER];
-                memset(&filelen, 0, DATA1_FILELEN_BUFFER);
-                fread(&lenbuf, 1, 1, ruu);
-                for(j=0; memcmp(&lenbuf, "\x00", 1) != 0; j++) {
-                    filelen[j] = lenbuf;
+                    /* Obtain the file length
+                     * (TODO: probably a better way of doing this).
+                     */
+                    int j = 0;
+                    char lenbuf;
+                    char filelen[RUU_FILELEN_BUFFER];
+                    memset(&filelen, 0, RUU_FILELEN_BUFFER);
                     fread(&lenbuf, 1, 1, ruu);
+                    for(j=0; memcmp(&lenbuf, "\x00", 1) != 0 && 
+                             j < RUU_FILELEN_BUFFER; j++) {
+                        filelen[j] = lenbuf;
+                        fread(&lenbuf, 1, 1, ruu);
+                    }
+                
+                    int filelength;
+                    sscanf(filelen, "%d", &filelength);
+                
+                    FILE *out;
+                    out = fopen(ruu_file + strlen(RUU_FILE_PREFIX), "wb");
+                
+                    while(filelength > 0) {
+                        length = fread(buffer, 1, CHUNK_SIZE, ruu);
+                        fwrite(buffer, 1, length, out);
+                        filelength -= length;
+                    }
+                
+                    fclose(out);
+                    
+                    result++;
+                    break;
                 }
-                
-                int filelength;
-                sscanf(filelen, "%d", &filelength);
-                
-                FILE *out = fopen(filename, "wb");
-                
-                while(filelength > 0) {
-                    length = fread(buffer, 1, chunk_size, ruu);
-                    fwrite(buffer, 1, length, out);
-                    filelength -= length;
-                }
-                
-                fclose(out);
-
-                result = true;
-                break;
-
             }
         }
 
-        offset += length;
-    } while(!result && length == chunk_size);
+    } while(result < count && length == CHUNK_SIZE);
 
     free(buffer);
+    for(c=0; c < count; c++)
+        free(*(search + (c * sizeof(char *))));
     free(search);
 
-    return result;
+    return result == count;
 }
 
 int main(int argc, char **argv) {
@@ -176,31 +208,25 @@ int main(int argc, char **argv) {
     chdir(tempdir);
     
     // Extract installshield cab files from RUU
-    printf("Extracting data1.cab...\n");
-    if(!extract_ruu_file(ruu, "data1.cab", CHUNK_SIZE)) {
-        printf("Error: Failed to extract data1.cab from %s\n", argv[1]);
+    if(!extract_ruu_files(ruu)) {
+        printf("Error: Failed to extract required files from %s\n", argv[1]);
         fclose(ruu);
+        cleanup(tempdir, currdir);
         return 3;
     }
     
-    printf("Extracting data1.hdr...\n");
-    if(!extract_ruu_file(ruu, "data1.hdr", CHUNK_SIZE)) {
-        printf("Error: Failed to extract data1.hdr from %s\n", argv[1]);
-        fclose(ruu);
-        return 4;
-    }
-
     // Close RUU file
     fclose(ruu);
 
     // Extract rom.zip from data1.cab
-    printf("Extracting rom.zip...\n");
     if(!extract_rom_zip(currdir)) {
         printf("Error: Failed to extract rom.zip from 'data1.cab'\n");
+        cleanup(tempdir, currdir);
         return 5;
     }
     
     // Report success
+    cleanup(tempdir, currdir);
     printf("Done!\n");
     return 0;
 } 
