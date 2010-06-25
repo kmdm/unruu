@@ -1,4 +1,4 @@
-/* extractrom.c - Extracts the rom.zip file from a RUU update.
+/* unruu.c - Extracts the rom.zip file from a RUU update.
  *
  * Copyright (C) 2010 Kenny Millington
  *
@@ -27,10 +27,10 @@
  * $ ./configure --prefix=/usr && make && sudo make install
  * 
  * COMPILATION
- * $ gcc -Wall -lunshield -o extractrom extractrom.c 
+ * $ gcc -Wall -lunshield -o unruu unruu.c
  * 
  * USAGE
- * $ ./extractrom /path/to/RUU.exe
+ * $ ./unruu /path/to/RUU.exe
  *
  * If successful it will create rom.zip in your current directory.
  *
@@ -56,6 +56,8 @@
 #define RUU_FILELEN_BUFFER 20
 #define ROM_ZIP_GROUP "<Support>Language Independent OS Independent Files"
 #define PATH_MAX 256
+#define ROM_ZIP_SKEW 512
+#define ROM_ZIP_HDR "\x50\x4B\x03\x04"
 
 void cleanup(char *tempdir, char *currdir) {
     char files[] = RUU_FILES;
@@ -70,6 +72,44 @@ void cleanup(char *tempdir, char *currdir) {
 
     chdir(currdir);
     rmdir(tempdir);
+}
+
+void check_and_fix_rom_zip(char *rom_file) {
+    FILE *rom = fopen(rom_file, "rb");
+    char *buf = malloc(CHUNK_SIZE * sizeof(char));
+    int i;
+    
+    fread(buf, 1, ROM_ZIP_SKEW, rom);
+    
+    for(i = 0; i < ROM_ZIP_SKEW - strlen(ROM_ZIP_HDR); i++) {
+        if(memcmp(buf+i, ROM_ZIP_HDR, strlen(ROM_ZIP_HDR)) == 0) {
+            if(i > 0) {
+                printf("Zip-skew (%d) detected, fixing...\n", i);
+                FILE *rom2 = fopen("rom2.zip", "wb+");
+                fseek(rom, i, SEEK_SET);
+                
+                int length;
+
+                while((length = fread(buf, 1, CHUNK_SIZE, rom)) > 0 )
+                    fwrite(buf, 1, length, rom2);
+
+                fclose(rom);
+                unlink(rom_file);
+                rom = fopen(rom_file, "wb");
+                
+                rewind(rom2);
+                while( (length = fread(buf, 1, CHUNK_SIZE, rom2)) > 0 )
+                    fwrite(buf, 1, length, rom);
+                
+                fclose(rom2);
+                unlink("rom2.zip");
+            }
+
+            break;
+        }
+    }
+
+    fclose(rom);
 }
 
 bool extract_rom_zip(char *path) {
@@ -92,6 +132,7 @@ bool extract_rom_zip(char *path) {
 
             if(strncmp(filename, "rom.zip", 7) == 0) {
                 unshield_file_save(unshield, i, output_path);
+                check_and_fix_rom_zip(output_path);
                 result = true;
                 break;
             }
@@ -203,7 +244,7 @@ int main(int argc, char **argv) {
 
     // Create and change into temporary directory
     char tempdir[PATH_MAX];
-    snprintf(tempdir, PATH_MAX, "/tmp/extractrom-XXXXXX");
+    snprintf(tempdir, PATH_MAX, "/tmp/unruu-XXXXXX");
     mkdtemp(tempdir);
     chdir(tempdir);
     
