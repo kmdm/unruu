@@ -39,7 +39,7 @@
  *
  * TODO
  * 1. extract_ruu_files needs correctly handle the edge case of the match string
-      laying over the CHUNK_SIZE boundary. 
+ *    laying over the CHUNK_SIZE boundary. 
  */
 
 #include <stdio.h>
