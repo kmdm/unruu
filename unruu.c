@@ -42,10 +42,12 @@
  *    laying over the CHUNK_SIZE boundary. 
  */
 
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <getopt.h>
 
 #include <libunshield.h>
 
@@ -58,6 +60,8 @@
 #define PATH_MAX 256
 #define ROM_ZIP_SKEW 512
 #define ROM_ZIP_HDR "\x50\x4B\x03\x04"
+
+int keepsig = 1;
 
 void cleanup(char *tempdir, char *currdir) {
     char files[] = RUU_FILES;
@@ -132,7 +136,7 @@ bool extract_rom_zip(char *path) {
 
             if(strncmp(filename, "rom.zip", 7) == 0) {
                 unshield_file_save(unshield, i, output_path);
-                check_and_fix_rom_zip(output_path);
+                if (!keepsig) check_and_fix_rom_zip(output_path);
                 result = true;
                 break;
             }
@@ -225,16 +229,59 @@ bool extract_ruu_files(FILE *ruu) {
 }
 
 int main(int argc, char **argv) {
+    int c;
+    char *ruuname;
+
+    while (1) {
+        //int this_option_optind = optind ? optind : 1;
+        int option_index = 0;
+        static struct option long_options[] = {
+            {"fixsig", 0, 0, 'f'},
+            {"keepsig", 0, 0, 'k'},
+            {"help", 0, 0, 'h'},
+            {0, 0, 0, 0}
+            };
+
+            c = getopt_long(argc, argv, "fkh", long_options, &option_index);
+            if (c == -1)
+                break;
+
+            switch (c) {
+                case 'k':
+                    keepsig = 1;
+                    break;
+
+                case 'f':
+                    keepsig = 0;
+                    break;
+
+                case 'h':
+                    printf("Usage: %s [--keepsig/-k] [--fixsig/f] RUU.exe\n", argv[0]);
+                    exit(EXIT_SUCCESS);
+
+                default:
+                    break;
+            }
+    }
+
+
     if(argc < 2) {
-        printf("Usage: %s <RUU-file.exe>\n", argv[0]);
+        printf("Usage: %s [--keepsig/-k] [--fixsig/f] RUU.exe\n", argv[0]);
         return 1;
     }
-    
+
+    if (argc==2) {
+        ruuname = argv[1];
+    } else {
+        ruuname = argv[2];
+    }
+
     // Open RUU file
-    FILE *ruu = fopen(argv[1], "rb");
+
+    FILE *ruu = fopen(ruuname, "rb");
     
     if(ruu == NULL) {
-        printf("Error: '%s' does not exist!\n", argv[1]);
+        printf("Error: '%s' does not exist!\n", ruuname);
         return 2;
     }
     
@@ -250,7 +297,7 @@ int main(int argc, char **argv) {
     
     // Extract installshield cab files from RUU
     if(!extract_ruu_files(ruu)) {
-        printf("Error: Failed to extract required files from %s\n", argv[1]);
+        printf("Error: Failed to extract required files from %s\n", ruuname);
         fclose(ruu);
         cleanup(tempdir, currdir);
         return 3;
