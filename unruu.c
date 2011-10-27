@@ -1,6 +1,6 @@
 /* unruu.c - Extracts the rom.zip file from a RUU update.
  *
- * Copyright (C) 2010 Kenny Millington
+ * Copyright (C) 2010-2011 Kenny Millington
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,27 +15,6 @@
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
- *
- * REQUIREMENTS
- * This program requires a patched unshield 0.6 to correctly support newer
- * installshield cab files.
- *
- * $ wget http://sourceforge.net/projects/synce/files/Unshield/0.6/unshield-0.6.tar.gz/download
- * $ tar xzf unshield-0.6.tar.gz
- * $ cd unshield-0.6
- * $ patch -p1 < ../unshield.patch
- * $ ./configure --prefix=/usr && make && sudo make install
- * 
- * COMPILATION
- * $ gcc -Wall -lunshield -o unruu unruu.c
- * 
- * USAGE
- * $ ./unruu /path/to/RUU.exe
- *
- * If successful it will create rom.zip in your current directory.
- *
- * NOTES
- * The code could probably be better, but c'est la vie! :>
  *
  * TODO
  * 1. extract_ruu_files needs correctly handle the edge case of the match string
@@ -256,7 +235,8 @@ int main(int argc, char **argv) {
                     break;
 
                 case 'h':
-                    printf("Usage: %s [--keepsig/-k] [--fixsig/f] RUU.exe\n", argv[0]);
+                    printf("Usage: %s [--keepsig/-k] [--fixsig/f] RUU.exe\n", 
+                           argv[0]);
                     exit(EXIT_SUCCESS);
 
                 default:
@@ -264,13 +244,10 @@ int main(int argc, char **argv) {
             }
     }
 
-
     if(argc < 2) {
-        printf("Usage: %s [--keepsig/-k] [--fixsig/f] RUU.exe\n", argv[0]);
+        printf("Usage: %s [--keepsig/-k] [--fixsig/-f] RUU.exe\n", argv[0]);
         return 1;
-    }
-
-    if (argc==2) {
+    } else if (argc == 2) {
         ruuname = argv[1];
     } else {
         ruuname = argv[2];

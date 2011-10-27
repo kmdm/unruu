@@ -1,0 +1,29 @@
+unruu
+-----
+
+unruu is a simple command line utility to extract the rom.zip file from a 
+HTC RUU update executable.
+
+Please note that it'll output the rom.zip file to your current directory.
+
+Requirements (libunshield v0.7 or higher):
+
+ $ svn co https://synce.svn.sourceforge.net/svnroot/synce/trunk/unshield unshield
+ $ cd unshield/
+ $ ./configure --prefix=/usr
+ $ make
+ $ sudo make install
+
+Building:
+
+ $ ./autogen.sh
+ $ ./configure
+ $ make
+
+Installing:
+
+ $ sudo make install
+
+Using:
+
+ $ unruu /path/to/RUU.exe
