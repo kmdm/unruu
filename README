@@ -10,6 +10,7 @@ Requirements (libunshield v0.7 or higher):
 
  $ svn co https://synce.svn.sourceforge.net/svnroot/synce/trunk/unshield unshield
  $ cd unshield/
+ $ ./bootstrap
  $ ./configure --prefix=/usr
  $ make
  $ sudo make install
