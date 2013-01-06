@@ -1,4 +1,4 @@
-/* unruu.c - Extracts the rom.zip file from a RUU update.
+/* unruu.c - Extracts the rom zip files from a RUU update.
  *
  * Copyright (C) 2010-2011 Kenny Millington
  *
@@ -37,12 +37,9 @@
 #define RUU_FILELEN_BUFFER 20
 #define ROM_ZIP_GROUP "<Support>Language Independent OS Independent Files"
 #define PATH_MAX 256
-#define ROM_ZIP_SKEW 512
-#define ROM_ZIP_HDR "\x50\x4B\x03\x04"
-
-int keepsig = 1;
 
 void cleanup(char *tempdir, char *currdir) {
+    return;
     char files[] = RUU_FILES;
     char *ruu_file = strtok(files, ",");
     
@@ -57,53 +54,13 @@ void cleanup(char *tempdir, char *currdir) {
     rmdir(tempdir);
 }
 
-void check_and_fix_rom_zip(char *rom_file) {
-    FILE *rom = fopen(rom_file, "rb");
-    char *buf = malloc(CHUNK_SIZE * sizeof(char));
-    int i;
-    
-    fread(buf, 1, ROM_ZIP_SKEW, rom);
-    
-    for(i = 0; i < ROM_ZIP_SKEW - strlen(ROM_ZIP_HDR); i++) {
-        if(memcmp(buf+i, ROM_ZIP_HDR, strlen(ROM_ZIP_HDR)) == 0) {
-            if(i > 0) {
-                printf("Zip-skew (%d) detected, fixing...\n", i);
-                FILE *rom2 = fopen("rom2.zip", "wb+");
-                fseek(rom, i, SEEK_SET);
-                
-                int length;
-
-                while((length = fread(buf, 1, CHUNK_SIZE, rom)) > 0 )
-                    fwrite(buf, 1, length, rom2);
-
-                fclose(rom);
-                unlink(rom_file);
-                rom = fopen(rom_file, "wb");
-                
-                rewind(rom2);
-                while( (length = fread(buf, 1, CHUNK_SIZE, rom2)) > 0 )
-                    fwrite(buf, 1, length, rom);
-                
-                fclose(rom2);
-                unlink("rom2.zip");
-            }
-
-            break;
-        }
-    }
-
-    fclose(rom);
-}
-
 bool extract_rom_zip(char *path) {
     bool result = false;
     int i;
     char *filename;
-    char *output_path = calloc(1, strlen(path) + 9);
-    strncpy(output_path, path, strlen(path));
-    strncat(output_path, "/rom.zip", 8);
+    char output_path[256] = {0};
     
-    printf("Extracting rom.zip...\n");
+    printf("Extracting rom zip files...\n");
     
     unshield_set_log_level(UNSHIELD_LOG_LEVEL_LOWEST);
     Unshield *unshield = unshield_open("data1.cab");
@@ -113,11 +70,16 @@ bool extract_rom_zip(char *path) {
         if(unshield_file_is_valid(unshield, i)) {
             filename = (char *)unshield_file_name(unshield, i);
 
-            if(strncmp(filename, "rom.zip", 7) == 0) {
-                unshield_file_save(unshield, i, output_path);
-                if (!keepsig) check_and_fix_rom_zip(output_path);
-                result = true;
-                break;
+            if(!strncmp(filename, "rom", 3)) {
+                if(!strncmp(filename + strlen(filename) - 3, "zip", 3)) {
+                    printf("Extracting %s...", filename);
+                    fflush(stdout);
+                    snprintf(output_path, sizeof(output_path), "%s/%s", 
+                             path, filename);
+                    unshield_file_save(unshield, i, output_path);
+                    printf("done.\n");
+                    result = true;
+                }
             }
         }
     }
@@ -208,57 +170,16 @@ bool extract_ruu_files(FILE *ruu) {
 }
 
 int main(int argc, char **argv) {
-    int c;
-    char *ruuname;
-
-    while (1) {
-        //int this_option_optind = optind ? optind : 1;
-        int option_index = 0;
-        static struct option long_options[] = {
-            {"fixsig", 0, 0, 'f'},
-            {"keepsig", 0, 0, 'k'},
-            {"help", 0, 0, 'h'},
-            {0, 0, 0, 0}
-            };
-
-            c = getopt_long(argc, argv, "fkh", long_options, &option_index);
-            if (c == -1)
-                break;
-
-            switch (c) {
-                case 'k':
-                    keepsig = 1;
-                    break;
-
-                case 'f':
-                    keepsig = 0;
-                    break;
-
-                case 'h':
-                    printf("Usage: %s [--keepsig/-k] [--fixsig/f] RUU.exe\n", 
-                           argv[0]);
-                    exit(EXIT_SUCCESS);
-
-                default:
-                    break;
-            }
-    }
-
     if(argc < 2) {
-        printf("Usage: %s [--keepsig/-k] [--fixsig/-f] RUU.exe\n", argv[0]);
+        printf("Usage: %s RUU.exe\n", argv[0]);
         return 1;
-    } else if (argc == 2) {
-        ruuname = argv[1];
-    } else {
-        ruuname = argv[2];
     }
 
     // Open RUU file
-
-    FILE *ruu = fopen(ruuname, "rb");
+    FILE *ruu = fopen(argv[1], "rb");
     
     if(ruu == NULL) {
-        printf("Error: '%s' does not exist!\n", ruuname);
+        printf("Error: '%s' does not exist!\n", argv[1]);
         return 2;
     }
     
@@ -274,7 +195,7 @@ int main(int argc, char **argv) {
     
     // Extract installshield cab files from RUU
     if(!extract_ruu_files(ruu)) {
-        printf("Error: Failed to extract required files from %s\n", ruuname);
+        printf("Error: Failed to extract required files from %s\n", argv[1]);
         fclose(ruu);
         cleanup(tempdir, currdir);
         return 3;
@@ -283,9 +204,9 @@ int main(int argc, char **argv) {
     // Close RUU file
     fclose(ruu);
 
-    // Extract rom.zip from data1.cab
+    // Extract rom zip files from data1.cab
     if(!extract_rom_zip(currdir)) {
-        printf("Error: Failed to extract rom.zip from 'data1.cab'\n");
+        printf("Error: Failed to extract rom zip files from 'data1.cab'\n");
         cleanup(tempdir, currdir);
         return 5;
     }
