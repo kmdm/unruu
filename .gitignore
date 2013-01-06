@@ -14,5 +14,6 @@ install-sh
 libtool
 ltmain.sh
 missing
+unruu
 *.o
 *.sw?
