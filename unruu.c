@@ -39,7 +39,6 @@
 #define PATH_MAX 256
 
 void cleanup(char *tempdir, char *currdir) {
-    return;
     char files[] = RUU_FILES;
     char *ruu_file = strtok(files, ",");
     
