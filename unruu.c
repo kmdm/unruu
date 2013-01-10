@@ -143,14 +143,12 @@ bool extract_ruu_files(FILE *ruu) {
 
                 if(i) {
                     uf = 1;
-                    printf("Found by unicode string, flag set...\n");
                 }
             }
 
             if(i) {
                 int j = 0;
                 j = uf  == 0 ? RUU_LENGTH_OFFSET : RUU_LENGTH_OFFSET * 2;
-                printf("using length offset: %d\n", j);
                 fseek(ruu, (i-buffer)+j-CHUNK_SIZE, SEEK_CUR);
                 /* Obtain the file length
                  * (TODO: probably a better way of doing this).
@@ -165,14 +163,11 @@ bool extract_ruu_files(FILE *ruu) {
                         fread(&lenbuf, 1, 1, ruu);
                     }
                 } else {
-                    printf("Unicode length parser running...\n");
                     char last = 0xff;
                     j = 0;
                     while(last != 0 || lenbuf != 0) {
-                        printf("char: %d at %d\n", lenbuf, ftell(ruu) - 1);
                         if(lenbuf != 0) {
                             filelen[j++] = lenbuf;
-                            printf("(%d): Length so far: %s\n", j, filelen);
                         }
                         last = lenbuf;
                         fread(&lenbuf, 1, 1, ruu);
@@ -181,8 +176,7 @@ bool extract_ruu_files(FILE *ruu) {
             
                 int filelength;
                 sscanf(filelen, "%d", &filelength);
-                printf("File length is %d (from: %s)\n", filelength, filelen);
-                fread(&lenbuf, 1, 1, ruu);
+                if(uf) fread(&lenbuf, 1, 1, ruu);
 
                 FILE *out;
                 out = fopen(ruu_file + strlen(RUU_FILE_PREFIX), "wb");
@@ -199,8 +193,6 @@ bool extract_ruu_files(FILE *ruu) {
             
                 fclose(out);
                 
-                printf("filedump complete, pos after count: %d\n", ftell(ruu));
-
                 result++;
                 length = CHUNK_SIZE;
                 break;
