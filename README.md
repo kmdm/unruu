@@ -11,20 +11,20 @@ Requirements (libunshield v0.7 or higher):
 
 To correctly handle InstallShield v18 files you will need to use my v18\_wip branch for unshield:-
 
- $ git clone https://github.com/kmdm/unshield.git
- $ cd unshield/
- $ git checkout -t origin/v18\_wip
- $ ./bootstrap
- $ ./configure --prefix=/usr
- $ make
- $ sudo make install
+    $ git clone https://github.com/kmdm/unshield.git
+    $ cd unshield/
+    $ git checkout -t origin/v18\_wip
+    $ ./bootstrap
+    $ ./configure --prefix=/usr
+    $ make
+    $ sudo make install
 
 Building:
 ---------
 
- $ ./autogen.sh
- $ ./configure
- $ make
+    $ ./autogen.sh
+    $ ./configure
+    $ make
 
 Downloading:
 ------------
@@ -36,9 +36,9 @@ You can download pre-compiled snapshots or releases from:-
 Installing:
 -----------
 
- $ sudo make install
+    $ sudo make install
 
 Using:
 ------
 
- $ unruu /path/to/RUU.exe
+    $ unruu /path/to/RUU.exe
