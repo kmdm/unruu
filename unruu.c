@@ -21,6 +21,7 @@
  *    laying over the CHUNK_SIZE boundary. 
  */
 
+#define _GNU_SOURCE
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -37,6 +38,17 @@
 #define RUU_FILELEN_BUFFER 20
 #define ROM_ZIP_GROUP "<Support>Language Independent OS Independent Files"
 #define PATH_MAX 256
+
+char *lame_make_unicode(char *string) {
+    char *buf = calloc(strlen(string) * 2, sizeof(char));
+    int i;
+
+    for(i = 0; i < strlen(string); i++) {
+        buf[i*2] = string[i];
+    }
+
+    return buf;
+}
 
 void cleanup(char *tempdir, char *currdir) {
     return;
@@ -116,46 +128,82 @@ bool extract_ruu_files(FILE *ruu) {
 
     rewind(ruu);
     do {
-        int i = 0;
+        char *i;
         length = fread(buffer, 1, CHUNK_SIZE, ruu);
         for(c=0; c < count; c++) {
+            int uf = 0;
             ruu_file = *(search+c);
             
-            for(i=0; i <= length - strlen(ruu_file); i++) {
-                if(memcmp(ruu_file, buffer + i, strlen(ruu_file)) == 0) {
-                    fseek(ruu, i + RUU_LENGTH_OFFSET - CHUNK_SIZE, SEEK_CUR);
-                
-                    /* Obtain the file length
-                     * (TODO: probably a better way of doing this).
-                     */
-                    int j = 0;
-                    char lenbuf;
-                    char filelen[RUU_FILELEN_BUFFER];
-                    memset(&filelen, 0, RUU_FILELEN_BUFFER);
-                    fread(&lenbuf, 1, 1, ruu);
-                    for(j=0; memcmp(&lenbuf, "\x00", 1) != 0 && 
-                             j < RUU_FILELEN_BUFFER; j++) {
+            i = memmem(buffer, length, ruu_file, strlen(ruu_file));
+
+            if(!i) {
+                char *u = lame_make_unicode(ruu_file);
+                i = memmem(buffer, length, u, strlen(ruu_file) * 2);
+                free(u);
+
+                if(i) {
+                    uf = 1;
+                    printf("Found by unicode string, flag set...\n");
+                }
+            }
+
+            if(i) {
+                int j = 0;
+                j = uf  == 0 ? RUU_LENGTH_OFFSET : RUU_LENGTH_OFFSET * 2;
+                printf("using length offset: %d\n", j);
+                fseek(ruu, (i-buffer)+j-CHUNK_SIZE, SEEK_CUR);
+                /* Obtain the file length
+                 * (TODO: probably a better way of doing this).
+                 */
+                char lenbuf;
+                char filelen[RUU_FILELEN_BUFFER];
+                memset(&filelen, 0, RUU_FILELEN_BUFFER);
+                fread(&lenbuf, 1, 1, ruu);
+                if(uf == 0) {
+                    for(j=0; lenbuf != 0 && j < RUU_FILELEN_BUFFER; j++) {
                         filelen[j] = lenbuf;
                         fread(&lenbuf, 1, 1, ruu);
                     }
-                
-                    int filelength;
-                    sscanf(filelen, "%d", &filelength);
-                
-                    FILE *out;
-                    out = fopen(ruu_file + strlen(RUU_FILE_PREFIX), "wb");
-                
-                    while(filelength > 0) {
-                        length = fread(buffer, 1, CHUNK_SIZE, ruu);
-                        fwrite(buffer, 1, length, out);
-                        filelength -= length;
+                } else {
+                    printf("Unicode length parser running...\n");
+                    char last = 0xff;
+                    j = 0;
+                    while(last != 0 || lenbuf != 0) {
+                        printf("char: %d at %d\n", lenbuf, ftell(ruu) - 1);
+                        if(lenbuf != 0) {
+                            filelen[j++] = lenbuf;
+                            printf("(%d): Length so far: %s\n", j, filelen);
+                        }
+                        last = lenbuf;
+                        fread(&lenbuf, 1, 1, ruu);
                     }
-                
-                    fclose(out);
-                    
-                    result++;
-                    break;
                 }
+            
+                int filelength;
+                sscanf(filelen, "%d", &filelength);
+                printf("File length is %d (from: %s)\n", filelength, filelen);
+                fread(&lenbuf, 1, 1, ruu);
+
+                FILE *out;
+                out = fopen(ruu_file + strlen(RUU_FILE_PREFIX), "wb");
+            
+                while(filelength > 0) {
+                    length = fread(
+                        buffer, 1, 
+                        filelength > CHUNK_SIZE ? CHUNK_SIZE : filelength, 
+                        ruu
+                    );
+                    fwrite(buffer, 1, length, out);
+                    filelength -= length;
+                }
+            
+                fclose(out);
+                
+                printf("filedump complete, pos after count: %d\n", ftell(ruu));
+
+                result++;
+                length = CHUNK_SIZE;
+                break;
             }
         }
 
