@@ -186,14 +186,19 @@ bool extract_ruu_files(FILE *ruu) {
                         filelength > CHUNK_SIZE ? CHUNK_SIZE : filelength, 
                         ruu
                     );
+
+                    if(length <= 0) break;
+
                     fwrite(buffer, 1, length, out);
                     filelength -= length;
                 }
-            
+
                 fclose(out);
                 
-                result++;
-                length = CHUNK_SIZE;
+                if(length > 0) {
+                    result++;
+                    length = CHUNK_SIZE;
+                }
                 break;
             }
         }
