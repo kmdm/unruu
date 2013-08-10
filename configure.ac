@@ -1,5 +1,5 @@
 AC_CONFIG_MACRO_DIR([m4])
-AC_INIT([unruu],[0.3.0-beta])
+AC_INIT([unruu],[0.3.1])
 AM_INIT_AUTOMAKE([1.10 no-define foreign])
 AC_PROG_LIBTOOL
 AC_PROG_CC
@@ -11,8 +11,8 @@ AS_IF([test "x$with_static" = "xyes"], [
     AC_SUBST([EXTRA_LDFLAGS], [-all-static])
 ])
 
-PKG_CHECK_MODULES([UNSHIELD], [libunshield >= 0.7], [], [AC_MSG_ERROR(
-    [unruu requires at least version 0.7 of libunshield]
+PKG_CHECK_MODULES([UNSHIELD], [libunshield >= 0.9], [], [AC_MSG_ERROR(
+    [unruu requires at least version 0.9 of libunshield]
 )])
 AC_CONFIG_FILES(Makefile)
 AC_OUTPUT
