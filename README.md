@@ -6,10 +6,8 @@ HTC RUU update executable.
 
 Please note that it'll output the rom.zip file to your current directory.
 
-Requirements (libunshield v0.8 or higher):
+Requirements (libunshield v0.9 or higher):
 ------------------------------------------
-
-To correctly handle InstallShield v18 files you will need to use my v18\_wip branch for unshield:-
 
     $ git clone https://github.com/twogood/unshield.git
     $ cd unshield/
